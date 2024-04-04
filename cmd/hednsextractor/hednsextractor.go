@@ -6,9 +6,7 @@ import (
 	"strconv"
 
 	"github.com/HuntDownProject/hednsextractor/utils"
-	"github.com/projectdiscovery/goflags"
 	"github.com/projectdiscovery/gologger"
-	"github.com/projectdiscovery/gologger/levels"
 )
 
 var (
@@ -17,72 +15,35 @@ var (
 
 func main() {
 
+	// Parse the stdin
 	utils.ParseStdin()
 
-	flagSet := goflags.NewFlagSet()
-	flagSet.Marshal = true
-	flagSet.SetDescription("HEDnsExtractor - A suite for hunting suspicious targets, expose domains and phishing discovery!")
-	flagSet.BoolVar(&utils.OptionCmd.Onlydomains, "only-domains", false, "show only domains")
-	flagSet.BoolVar(&utils.OptionCmd.Onlynetworks, "only-networks", false, "show only networks")
-	flagSet.StringVar(&utils.OptionCmd.Workflow, "workflow", "", "Workflow config")
-	flagSet.StringVar(&utils.OptionCmd.Target, "target", "", "IP Address or Network to query")
-	flagSet.BoolVar(&utils.OptionCmd.Silent, "silent", false, "show silent output")
-	flagSet.BoolVar(&utils.OptionCmd.Verbose, "verbose", false, "show verbose output")
-
-	flagSet.CreateGroup("configuration", "Configuration",
-		flagSet.StringVar(&utils.OptionCmd.Config, "config", utils.DefaultConfigLocation, "flag config file"),
-	)
-
-	flagSet.CreateGroup("config", "Virustotal",
-		flagSet.BoolVar(&utils.OptionCmd.Vtscore, "vt", false, "show Virustotal score"),
-		flagSet.StringVar(&utils.OptionCmd.VtApiKey, "vt-api-key", "", "Virustotal API Key"),
-		flagSet.StringVar(&utils.OptionCmd.VtscoreValue, "vt-score", "0", "Minimum Virustotal score to show"),
-	)
-
-	if err := flagSet.Parse(); err != nil {
-		gologger.Fatal().Msgf("Could not parse flags: %s\n", err)
-	}
-
-	if utils.OptionCmd.Verbose {
-		gologger.DefaultLogger.SetMaxLevel(levels.LevelVerbose)
-	} else if utils.OptionCmd.Silent {
-		gologger.DefaultLogger.SetMaxLevel(levels.LevelSilent)
-	} else {
-		gologger.DefaultLogger.SetMaxLevel(levels.LevelInfo)
-	}
-
-	if utils.OptionCmd.Vtscore && utils.OptionCmd.VtApiKey == "" {
-		gologger.Fatal().Msgf("A Virustotal API Key is needed in config file: %s\n", utils.DefaultConfigLocation)
-	}
+	// Load parameters from command line and configuration file
+	utils.LoadParameters()
 
 	// Show Banner
 	utils.ShowBanner()
 
-	// read the targets from yaml
-	var c utils.Conf
+	// read the Workflow from yaml
+	var workflow utils.Workflow
 	if utils.OptionCmd.Workflow != "" {
-		c.GetConf(utils.OptionCmd.Workflow)
+		workflow.GetConf(utils.OptionCmd.Workflow)
 
-		for i := range c.Domains {
-			utils.IdentifyTarget(c.Domains[i])
+		for i := range workflow.Domains {
+			utils.IdentifyTarget(workflow.Domains[i])
 		}
 
-		for i := range c.Ipaddrs {
-			utils.IdentifyTarget(c.Ipaddrs[i])
+		for i := range workflow.Ipaddrs {
+			utils.IdentifyTarget(workflow.Ipaddrs[i])
 		}
 
-		for i := range c.Networks {
-			utils.IdentifyTarget(c.Networks[i])
+		for i := range workflow.Networks {
+			utils.IdentifyTarget(workflow.Networks[i])
 		}
 	}
 
-	// Look into target parameter to grab the IPv4s and Networks
-	if utils.OptionCmd.Target != "" {
-		gologger.Verbose().Msgf("Identifying networks for %s", utils.OptionCmd.Target)
-		utils.IdentifyTarget(utils.OptionCmd.Target)
-	}
-
-	utils.RunCrawler()
+	hurricane := utils.Hurricane{}
+	hurricane.RunCrawler()
 
 	if utils.OptionCmd.Vtscore && !utils.OptionCmd.Silent {
 		gologger.Info().Msgf("Filtering with Virustotal with a mininum score %s", utils.OptionCmd.VtscoreValue)
@@ -92,8 +53,8 @@ func main() {
 		var bMatchedPTR = false
 		var bMatchedDomain = false
 
-		if c.Regex != "" {
-			var re = regexp.MustCompile(c.Regex)
+		if workflow.Regex != "" {
+			var re = regexp.MustCompile(workflow.Regex)
 			bMatchedDomain = re.MatchString(result.Domain)
 			bMatchedPTR = re.MatchString(result.PTR)
 		} else {
@@ -106,7 +67,8 @@ func main() {
 		}
 
 		if utils.OptionCmd.Vtscore {
-			result.VtScore = utils.GetVtReport(result.Domain)
+			virustotal := utils.Virustotal{}
+			result.VtScore = virustotal.GetVtReport(result.Domain)
 			if score, err := strconv.ParseUint(utils.OptionCmd.VtscoreValue, 10, 64); err == nil {
 				if result.VtScore < score {
 					continue

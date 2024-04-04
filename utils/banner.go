@@ -14,7 +14,7 @@ var banner = `
 ╰╯╱╰┻━━━┻━━━┻╯╰┻━━┻━━━┻╯╰┻━┻╯╰╯╰┻━━┻━┻━━┻╯
 `
 
-var version = "v1.0.2"
+var version = "v1.0.3"
 
 func ShowBanner() {
 	gologger.Print().Msgf("%s\n", banner)

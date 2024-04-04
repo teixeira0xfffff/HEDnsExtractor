@@ -2,15 +2,30 @@ package utils
 
 import (
 	"fmt"
+	"net/http/httputil"
+
 	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/retryablehttp-go"
 	"github.com/tidwall/gjson"
-	"net/http/httputil"
 )
 
-func GetVtReport(domain string) uint64 {
-	urlBase := fmt.Sprintf("https://www.virustotal.com/api/v3/domains/%s", domain)
+type Virustotal struct {
+}
 
+const vt_url = "https://www.virustotal.com"
+
+func (c *Virustotal) GetVtReport(domain string) uint64 {
+	urlBase := fmt.Sprintf("%s/api/v3/domains/%s", vt_url, domain)
+
+	str := c.request(urlBase)
+
+	malicious := gjson.Get(str, "data.attributes.last_analysis_stats.malicious")
+	suspicious := gjson.Get(str, "data.attributes.last_analysis_stats.suspicious")
+	vtScore := malicious.Uint() + suspicious.Uint()
+	return vtScore
+}
+
+func (c *Virustotal) request(urlBase string) string {
 	request, err := retryablehttp.NewRequest("GET", urlBase, nil)
 	if err != nil {
 		gologger.Fatal().Msgf("err: %v", err)
@@ -29,9 +44,5 @@ func GetVtReport(domain string) uint64 {
 		panic(err)
 	}
 	str := string(bin)
-
-	malicious := gjson.Get(str, "data.attributes.last_analysis_stats.malicious")
-	suspicious := gjson.Get(str, "data.attributes.last_analysis_stats.suspicious")
-	vtScore := malicious.Uint() + suspicious.Uint()
-	return vtScore
+	return str
 }
