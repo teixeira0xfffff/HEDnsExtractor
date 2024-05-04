@@ -89,7 +89,7 @@ func (h *Hurricane) ParseHTML(body io.Reader) {
 		gologger.Fatal().Msgf("%s", err)
 	}
 	var re = regexp.MustCompile(`\/dns\/([^"]+)`)
-	doc.Find("#dnsrecords").Each(func(h int, div *goquery.Selection) {
+	doc.Find("#_dnsrecords").Each(func(h int, div *goquery.Selection) {
 		div.Find("tr").Each(func(i int, tr *goquery.Selection) {
 			var result Result
 			tr.Find("td").Each(func(j int, td *goquery.Selection) {
@@ -124,7 +124,7 @@ func (h *Hurricane) ExtractNetwork(ip string) {
 	var str = h.Request(url)
 
 	if ip != "" {
-		var re = regexp.MustCompile(`(?m)href="/net/([^"]+)"`)
+		var re = regexp.MustCompile(`(?m)href="/dns/([^"]+)"`)
 		for _, match := range re.FindAllStringSubmatch(str, -1) {
 			if !Contains(Networks, match[1]) {
 				if (!OptionCmd.Silent && !OptionCmd.Onlydomains) || OptionCmd.Onlynetworks {
