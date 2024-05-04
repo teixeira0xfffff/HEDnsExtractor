@@ -10,6 +10,7 @@ type options struct {
 	VtscoreValue string
 	VtApiKey     string
 	Target       string
+	Timeout      int
 	Domain       string
 	Config       string
 }

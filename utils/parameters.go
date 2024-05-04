@@ -30,6 +30,7 @@ func LoadParameters() {
 	flagSet.BoolVar(&OptionCmd.Onlynetworks, "only-networks", false, "show only networks")
 	flagSet.StringVar(&OptionCmd.Workflow, "workflow", "", "Workflow config")
 	flagSet.StringVar(&OptionCmd.Target, "target", "", "IP Address or Network to query")
+	flagSet.IntVar(&OptionCmd.Timeout, "timeout", 10, "Timeout in seconds")
 	flagSet.BoolVar(&OptionCmd.Silent, "silent", false, "show silent output")
 	flagSet.BoolVar(&OptionCmd.Verbose, "verbose", false, "show verbose output")
 
