@@ -5,6 +5,7 @@ import (
 	"net/http/httputil"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/projectdiscovery/gologger"
@@ -38,6 +39,10 @@ func (h *Hurricane) RunCrawler() {
 func (h *Hurricane) Request(url string) string {
 	opts := retryablehttp.DefaultOptionsSpraying
 	client := retryablehttp.NewClient(opts)
+
+	// Configurando o timeout diretamente no cliente HTTP interno
+	client.HTTPClient.Timeout = 30 * time.Second
+
 	resp, err := client.Get(url)
 	if err != nil {
 		panic(err)
@@ -56,7 +61,7 @@ func (h *Hurricane) ExtractDomain(domain string) {
 	var url = ""
 
 	if domain != "" {
-		url = urlBase + "dns/" + domain
+		url = urlBase + "dns/" + domain + "#_dns"
 	}
 
 	var str = h.Request(url)
@@ -77,7 +82,7 @@ func (h *Hurricane) ExtractDomains(ipRange string) {
 		return
 	}
 
-	var url = urlBase + "net/" + ipRange
+	var url = urlBase + "net/" + ipRange + "#_dnsrecords"
 	var html = h.Request(url)
 
 	h.ParseHTML(strings.NewReader(html))
@@ -89,7 +94,9 @@ func (h *Hurricane) ParseHTML(body io.Reader) {
 		gologger.Fatal().Msgf("%s", err)
 	}
 	var re = regexp.MustCompile(`\/dns\/([^"]+)`)
-	doc.Find("#_dnsrecords").Each(func(h int, div *goquery.Selection) {
+
+	doc.Find("#dnsrecords").Each(func(h int, div *goquery.Selection) {
+
 		div.Find("tr").Each(func(i int, tr *goquery.Selection) {
 			var result Result
 			tr.Find("td").Each(func(j int, td *goquery.Selection) {
