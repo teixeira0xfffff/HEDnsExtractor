@@ -40,12 +40,11 @@ func (h *Hurricane) Request(url string) string {
 	opts := retryablehttp.DefaultOptionsSpraying
 	client := retryablehttp.NewClient(opts)
 
-	// Configurando o timeout diretamente no cliente HTTP interno
-	client.HTTPClient.Timeout = 30 * time.Second
+	client.HTTPClient.Timeout = time.Duration(OptionCmd.Timeout) * time.Second
 
 	resp, err := client.Get(url)
 	if err != nil {
-		panic(err)
+		gologger.Fatal().Msgf("Could not get the response from the server: %s\n", err)
 	}
 
 	bin, err := httputil.DumpResponse(resp, true)
