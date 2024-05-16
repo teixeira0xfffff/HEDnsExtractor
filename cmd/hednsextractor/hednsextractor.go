@@ -104,7 +104,7 @@ func prepareOutput(result utils.Result, bMatchedDomain bool, bMatchedPTR bool) s
 		}
 	}
 
-	if bMatchedPTR && result.PTR != "" {
+	if bMatchedPTR && result.PTR != "" && output == "" {
 		if utils.OptionCmd.Silent {
 			output = fmt.Sprintf("%s\n", result.PTR)
 		} else {
