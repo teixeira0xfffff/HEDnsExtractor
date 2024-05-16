@@ -130,7 +130,7 @@ func (h *Hurricane) ExtractNetwork(ip string) {
 	var str = h.Request(url)
 
 	if ip != "" {
-		var re = regexp.MustCompile(`(?m)href="/dns/([^"]+)"`)
+		var re = regexp.MustCompile(`(?m)href="/net/([^"]+)"`)
 		for _, match := range re.FindAllStringSubmatch(str, -1) {
 			if !Contains(Networks, match[1]) {
 				if (!OptionCmd.Silent && !OptionCmd.Onlydomains) || OptionCmd.Onlynetworks {
