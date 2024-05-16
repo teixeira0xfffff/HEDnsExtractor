@@ -2,15 +2,29 @@ package utils
 
 import (
 	"io"
+	"net/http"
 	"net/http/httputil"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/corpix/uarand"
 	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/retryablehttp-go"
 )
+
+// CustomTransport struct that embeds http.RoundTripper
+type CustomTransport struct {
+	Transport http.RoundTripper
+	UserAgent string
+}
+
+// RoundTrip method to add the custom User-Agent header
+func (c *CustomTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req.Header.Set("User-Agent", c.UserAgent)
+	return c.Transport.RoundTrip(req)
+}
 
 type Hurricane struct {
 }
@@ -37,9 +51,20 @@ func (h *Hurricane) RunCrawler() {
 }
 
 func (h *Hurricane) Request(url string) string {
+
+	// Create a custom transport with the desired User-Agent
+	customTransport := &CustomTransport{
+		Transport: http.DefaultTransport,
+		UserAgent: uarand.GetRandom(),
+	}
+
 	opts := retryablehttp.DefaultOptionsSpraying
 	client := retryablehttp.NewClient(opts)
 
+	// uses the custom transport
+	client.HTTPClient.Transport = customTransport
+
+	// adjust the timeout
 	client.HTTPClient.Timeout = time.Duration(OptionCmd.Timeout) * time.Second
 
 	resp, err := client.Get(url)
@@ -49,7 +74,7 @@ func (h *Hurricane) Request(url string) string {
 
 	bin, err := httputil.DumpResponse(resp, true)
 	if err != nil {
-		panic(err)
+		gologger.Fatal().Msgf("Could not dump the response from the server: %s\n", err)
 	}
 	str := string(bin)
 
