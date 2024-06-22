@@ -49,6 +49,15 @@ func main() {
 		gologger.Info().Msgf("Filtering with Virustotal with a mininum score %s", utils.OptionCmd.VtscoreValue)
 	}
 
+	// Print the results
+	report := utils.NewReport()
+	report.Import()
+	report.Enrich(utils.OptionCmd.Vtscore)
+	report.Show(utils.OptionCmd.Vtscore, utils.OptionCmd.VtscoreValue)
+	report.Close()
+
+	return
+
 	for _, result := range utils.Results {
 		var bMatchedPTR = false
 		var bMatchedDomain = false
