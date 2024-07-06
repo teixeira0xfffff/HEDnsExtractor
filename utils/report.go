@@ -16,7 +16,8 @@ type Report struct {
 }
 
 func NewReport() *Report {
-	database := "results.sqlite"
+	//database := "results.sqlite"
+	database := "::memory:"
 	db, err := sql.Open("sqlite", database)
 	if err != nil {
 		gologger.Error().Msgf("Error opening the database: %s", err)
