@@ -19,7 +19,10 @@ var (
 func main() {
 	utils.ParseStdin()
 	utils.LoadParameters()
-	utils.ShowBanner()
+
+	if !utils.OptionCmd.Silent {
+		utils.ShowBanner()
+	}
 
 	var workflow utils.Workflow
 	if utils.OptionCmd.Workflow != "" {
