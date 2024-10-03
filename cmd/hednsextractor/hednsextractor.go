@@ -17,39 +17,25 @@ var (
 )
 
 func main() {
-	// Parse the standard input
 	utils.ParseStdin()
-
-	// Load parameters from command line and configuration file
 	utils.LoadParameters()
-
-	// Show banner
 	utils.ShowBanner()
 
-	// Read the Workflow from YAML
 	var workflow utils.Workflow
 	if utils.OptionCmd.Workflow != "" {
 		workflow.GetConf(utils.OptionCmd.Workflow)
 
-		// Simplify workflow loops
-		for _, domain := range workflow.Domains {
-			utils.IdentifyTarget(domain)
-		}
-
-		for _, ipaddr := range workflow.Ipaddrs {
-			utils.IdentifyTarget(ipaddr)
-		}
-
-		for _, network := range workflow.Networks {
-			utils.IdentifyTarget(network)
-		}
+		// Simplify workflow target processing
+		processTargets(workflow.Domains)
+		processTargets(workflow.Ipaddrs)
+		processTargets(workflow.Networks)
 	}
 
 	hurricane := utils.Hurricane{}
 	hurricane.RunCrawler()
 
 	if utils.OptionCmd.Vtscore && !utils.OptionCmd.Silent {
-		gologger.Info().Msgf("Filtering with Virustotal with a minimum score %s", utils.OptionCmd.VtscoreValue)
+		gologger.Info().Msgf("Filtering with Virustotal, minimum score: %s", utils.OptionCmd.VtscoreValue)
 	}
 
 	// Process results
@@ -57,15 +43,21 @@ func main() {
 		processResult(result, workflow)
 	}
 
-	// Display results grouped by IP
-	displayOutputs()
+	displayOutputs() // Display results grouped by IP
 }
 
-// Processes each result and applies Regex and Vtscore filters
-func processResult(result utils.Result, workflow utils.Workflow) {
-	var bMatchedPTR, bMatchedDomain = matchResultWithRegex(result, workflow.Regex)
+// Processes workflow targets such as domains, IP addresses, or networks
+func processTargets(targets []string) {
+	for _, target := range targets {
+		utils.IdentifyTarget(target)
+	}
+}
 
-	// If no domain or PTR matches the regex, continue
+// Processes each result and applies regex and VirusTotal score filters
+func processResult(result utils.Result, workflow utils.Workflow) {
+	bMatchedDomain, bMatchedPTR := matchResultWithRegex(result, workflow.Regex)
+
+	// Skip if no domain or PTR matches the regex
 	if !bMatchedDomain && !bMatchedPTR {
 		return
 	}
@@ -77,58 +69,65 @@ func processResult(result utils.Result, workflow utils.Workflow) {
 
 	// Group domains by IP
 	if bMatchedDomain && result.Domain != "" {
-		outputs[result.IPAddr] = append(outputs[result.IPAddr], fmt.Sprintf("├─ Domain: %s", result.Domain))
+		formatAndStoreResult(result.IPAddr, result.Domain, "Domain")
 	}
 
-	// Check if the PTR has already been added to avoid duplicates
+	// Avoid PTR duplicates
 	if bMatchedPTR && result.PTR != "" {
 		ptrKey := fmt.Sprintf("%s:%s", result.IPAddr, result.PTR)
-		if !ptrTracker[ptrKey] { // If it hasn't been added yet
-			// PTR will be added at the end
-			ptrTracker[ptrKey] = true // Mark the PTR as added
-			outputs[result.IPAddr] = append(outputs[result.IPAddr], fmt.Sprintf("└─ PTR: %s", result.PTR))
+		if !ptrTracker[ptrKey] {
+			ptrTracker[ptrKey] = true
+			formatAndStoreResult(result.IPAddr, result.PTR, "PTR")
 		}
 	}
 }
 
-// Checks if the result matches the regex for domain and PTR
+// Checks if the result matches the regex for both domain and PTR
 func matchResultWithRegex(result utils.Result, regex string) (bool, bool) {
-	if regex != "" {
-		re := regexp.MustCompile(regex)
-		return re.MatchString(result.Domain), re.MatchString(result.PTR)
+	if regex == "" {
+		return true, true
 	}
-	return true, true
+	re := regexp.MustCompile(regex)
+	return re.MatchString(result.Domain), re.MatchString(result.PTR)
 }
 
 // Filters the result based on the VirusTotal score
 func filterByVtScore(result utils.Result) bool {
 	virustotal := utils.Virustotal{}
 	result.VtScore = virustotal.GetVtReport(result.Domain)
-	if score, err := strconv.ParseUint(utils.OptionCmd.VtscoreValue, 10, 64); err == nil {
-		return result.VtScore >= score
-	} else {
-		gologger.Fatal().Msg("Invalid parameter value for vt-score")
+	score, err := strconv.ParseUint(utils.OptionCmd.VtscoreValue, 10, 64)
+	if err != nil {
+		gologger.Fatal().Msg("Invalid value for vt-score")
 		return false
+	}
+	return result.VtScore >= score
+}
+
+// Formats and stores the result in the outputs map
+func formatAndStoreResult(ip, value, resultType string) {
+	formattedValue := fmt.Sprintf("%s: %s", resultType, value)
+	if utils.OptionCmd.Silent {
+		outputs[ip] = append(outputs[ip], value)
+	} else {
+		prefix := "├─"
+		if resultType == "PTR" {
+			prefix = "└─"
+		}
+		outputs[ip] = append(outputs[ip], fmt.Sprintf("%s %s", prefix, formattedValue))
 	}
 }
 
-// Displays the formatted output with separators, without PTR duplication, with PTR at the end, and with colors
+// Displays the formatted outputs with colors and without PTR duplication
 func displayOutputs() {
-	// Define colors
 	ipColor := color.New(color.FgCyan).SprintFunc()
 	domainColor := color.New(color.FgGreen).SprintFunc() // Green for domains
 	ptrColor := color.New(color.FgYellow).SprintFunc()   // Yellow for PTRs
 
 	for ip, entries := range outputs {
-		// Add a separator line before each group
 		gologger.Print().Msg("──────────────────────────────────────────")
-		// Display the IP with color
 		gologger.Print().Msgf(" IP: %s", ipColor(ip))
 
-		// Lists to separate domains and PTRs
 		var domains, ptrs []string
-
-		// Separate domains and PTRs
 		for _, entry := range entries {
 			if strings.Contains(entry, "Domain:") {
 				domains = append(domains, entry)
@@ -137,26 +136,28 @@ func displayOutputs() {
 			}
 		}
 
-		// Display the domains with color
-		for _, domain := range domains {
-			// Apply color to the domain
-			gologger.Print().Msgf(" %s", colorizeEntry(domain, domainColor))
-		}
+		displayEntries(domains, domainColor)
+		displayEntries(ptrs, ptrColor)
+	}
+}
 
-		// Display the PTRs with color at the end
-		for _, ptr := range ptrs {
-			// Apply color to the PTR
-			gologger.Print().Msgf(" %s", colorizeEntry(ptr, ptrColor))
+// Displays the entries formatted with colors
+func displayEntries(entries []string, colorFunc func(a ...interface{}) string) {
+	for _, entry := range entries {
+		coloredEntry := colorizeEntry(entry, colorFunc)
+		if utils.OptionCmd.Silent {
+			gologger.Silent().Msgf(coloredEntry)
+		} else {
+			gologger.Print().Msgf(" %s", coloredEntry)
 		}
 	}
 }
 
-// Replaces the value of the domain or PTR with the colored version
+// Applies color to the domain or PTR value
 func colorizeEntry(entry string, colorFunc func(a ...interface{}) string) string {
 	re := regexp.MustCompile(`: (.+)`)
 	match := re.FindStringSubmatch(entry)
 	if len(match) > 1 {
-		// Apply color directly to the value after the ":"
 		coloredValue := colorFunc(match[1])
 		return re.ReplaceAllString(entry, fmt.Sprintf(": %s", coloredValue))
 	}
