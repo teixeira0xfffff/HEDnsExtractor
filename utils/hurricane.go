@@ -97,6 +97,7 @@ func (h *Hurricane) ExtractDomain(domain string) {
 				gologger.Info().Msgf("[%s] network: %s\n", domain, match[1])
 			}
 			Networks = append(Networks, match[1])
+			gologger.Verbose().Msgf("Identifying domains for network: %s", match[1])
 		}
 	}
 }
